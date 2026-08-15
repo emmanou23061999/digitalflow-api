@@ -1,1 +1,37 @@
-DigitalFlow APIDigitalFlow API est un projet d’API portable destiné à simplifier la vente et la livraison de produits numériques.Le parcours principal prévu est le suivant : un vendeur crée un produit, crée une offre, génère un paiement de test, reçoit la confirmation du paiement, puis livre automatiquement le produit au client.Le projet doit rester indépendant d’un assistant, d’un abonnement ou d’une plateforme unique. Le code, la documentation et les décisions doivent pouvoir être repris avec Claude, un autre assistant ou un environnement local.État du projetLe dépôt vient d’être créé. Le développement n’a pas encore commencé. La priorité est de définir clairement la première version avant d’ajouter WhatsApp, l’intelligence artificielle ou des fonctions avancées.Première version prévueLa première version doit permettre :1.de créer un produit numérique ;2.de créer une offre liée à ce produit ;3.de générer une session de paiement de test ;4.de recevoir la confirmation du paiement par webhook ;5.de créer une commande ;6.de générer un lien de livraison sécurisé ;7.de consulter l’historique de la commande.Règles importantesLes clés secrètes ne doivent jamais être enregistrées dans GitHub. Elles seront placées plus tard dans des variables d’environnement. Le fichier .env.example pourra contenir uniquement des noms de variables et des valeurs fictives.Chaque modification importante devra être accompagnée d’un test et d’une mise à jour de la documentation. Les intégrations externes devront être isolées derrière des interfaces afin de pouvoir remplacer un fournisseur sans réécrire toute l’API.Prochaine étapeCréer PROJECT_CONTEXT.md, .gitignore, .env.example et une première spécification openapi.yaml, puis envoyer ces fichiers dans le dépôt GitHub.
+# DigitalFlow API
+
+DigitalFlow API est une API REST portable destinée à la vente et à la livraison de produits numériques. Le parcours principal est centré sur la création d’une commande, la confirmation d’un paiement simulé et la préparation d’un lien de livraison WhatsApp.
+
+Le projet est conçu pour rester simple, compréhensible et portable. Il fonctionne avec Node.js, le module natif `http` et un fichier local `data.json`. Il ne dépend pas de Manus et n’utilise aucune vraie clé de paiement ou clé WhatsApp.
+
+## Objectifs du projet
+
+DigitalFlow API doit permettre de :
+
+- enregistrer des produits numériques ;
+- créer des offres ;
+- recevoir des commandes de clients ;
+- créer une session de paiement simulée ;
+- confirmer un paiement dans le prototype ;
+- générer un lien WhatsApp contenant le message de livraison ;
+- préparer la remise d’un lien de téléchargement après paiement.
+
+## Technologies utilisées
+
+| Élément | Choix actuel |
+|---|---|
+| Langage | JavaScript |
+| Runtime | Node.js 20 |
+| Serveur HTTP | Module natif `http` |
+| Dépendances | Aucune dépendance npm obligatoire |
+| Stockage du prototype | `data.json` |
+| Devise par défaut | XOF |
+| Hébergement de test | Replit |
+| Sauvegarde du code | GitHub |
+
+## Installation et démarrage
+
+Le projet peut être lancé avec :
+
+```bash
+npm start
