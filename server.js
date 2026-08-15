@@ -60,7 +60,10 @@ function readBody(req) {
 }
 
 function nextId(items) {
-  if (items.length === 0) return 1;
+  if (items.length === 0) {
+    return 1;
+  }
+
   return Math.max(...items.map((item) => Number(item.id) || 0)) + 1;
 }
 
@@ -159,23 +162,31 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    sendJson(res, 200, {
-      success: true,
-      data: order
-    });
+    sendJson(res, 200, { success: true, data: order });
     return;
   }
 
   if (method === 'POST' && url === '/orders') {
     try {
       const body = await readBody(req);
+      const customerName = body.customerName || body.name;
+      const orderAmount = Number(body.amount ?? body.price);
+
+      if (!customerName || !orderAmount || orderAmount <= 0) {
+        sendJson(res, 400, {
+          success: false,
+          error: 'customerName et amount sont obligatoires'
+        });
+        return;
+      }
+
       const order = {
         id: nextId(data.orders),
-        customerName: body.customerName || body.name || 'Client',
+        customerName: customerName,
         customerPhone: body.customerPhone || body.phone || '',
         productId: body.productId || null,
         offerId: body.offerId || null,
-        amount: Number(body.amount ?? body.price) || 0,
+        amount: orderAmount,
         currency: body.currency || 'XOF',
         status: 'pending',
         createdAt: new Date().toISOString()
@@ -305,10 +316,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const product = data.products.find((item) => {
-        return Number(item.id) === Number(order.productId);
-      });
-
+      const product = data.products.find((item) => Number(item.id) === Number(order.productId));
       const downloadUrl = product && product.downloadUrl
         ? product.downloadUrl
         : `https://digitalflow.test/download/order-${order.id}`;
