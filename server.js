@@ -122,15 +122,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Créer un produit avec validation
   if (method === 'POST' && url === '/products') {
     try {
       const body = await readBody(req);
+      const name = String(body.name || '').trim();
+      const description = String(body.description || '').trim();
+      const price = Number(body.price);
+
+      if (!name || !description || !Number.isFinite(price) || price <= 0) {
+        sendJson(res, 400, {
+          success: false,
+          error: 'name, description et un price supérieur à 0 sont obligatoires'
+        });
+        return;
+      }
 
       const product = {
         id: nextId(data.products),
-        name: body.name || '',
-        description: body.description || '',
-        price: Number(body.price) || 0,
+        name,
+        description,
+        price,
         currency: body.currency || 'XOF',
         createdAt: new Date().toISOString()
       };
@@ -399,3 +411,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`DigitalFlow API démarrée sur le port ${PORT}`);
 });
+
