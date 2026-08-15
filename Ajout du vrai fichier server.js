@@ -16,11 +16,7 @@ function loadData() {
       orders: Array.isArray(data.orders) ? data.orders : []
     };
   } catch (error) {
-    return {
-      products: [],
-      offers: [],
-      orders: []
-    };
+    return { products: [], offers: [], orders: [] };
   }
 }
 
@@ -64,10 +60,7 @@ function readBody(req) {
 }
 
 function nextId(items) {
-  if (items.length === 0) {
-    return 1;
-  }
-
+  if (items.length === 0) return 1;
   return Math.max(...items.map((item) => Number(item.id) || 0)) + 1;
 }
 
@@ -90,10 +83,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (method === 'GET' && url === '/products') {
-    sendJson(res, 200, {
-      success: true,
-      data: data.products
-    });
+    sendJson(res, 200, { success: true, data: data.products });
     return;
   }
 
@@ -112,11 +102,7 @@ const server = http.createServer(async (req, res) => {
 
       data.products.push(product);
       saveData(data);
-
-      sendJson(res, 201, {
-        success: true,
-        data: product
-      });
+      sendJson(res, 201, { success: true, data: product });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
@@ -127,10 +113,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (method === 'GET' && url === '/offers') {
-    sendJson(res, 200, {
-      success: true,
-      data: data.offers
-    });
+    sendJson(res, 200, { success: true, data: data.offers });
     return;
   }
 
@@ -149,11 +132,7 @@ const server = http.createServer(async (req, res) => {
 
       data.offers.push(offer);
       saveData(data);
-
-      sendJson(res, 201, {
-        success: true,
-        data: offer
-      });
+      sendJson(res, 201, { success: true, data: offer });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
@@ -164,10 +143,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (method === 'GET' && url === '/orders') {
-    sendJson(res, 200, {
-      success: true,
-      data: data.orders
-    });
+    sendJson(res, 200, { success: true, data: data.orders });
     return;
   }
 
@@ -188,11 +164,7 @@ const server = http.createServer(async (req, res) => {
 
       data.orders.push(order);
       saveData(data);
-
-      sendJson(res, 201, {
-        success: true,
-        data: order
-      });
+      sendJson(res, 201, { success: true, data: order });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
@@ -287,6 +259,69 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 400, {
         success: false,
         error: 'Données de confirmation invalides'
+      });
+    }
+    return;
+  }
+
+  if (method === 'POST' && url === '/deliveries/whatsapp') {
+    try {
+      const body = await readBody(req);
+      const orderId = Number(body.orderId);
+      const order = data.orders.find((item) => Number(item.id) === orderId);
+
+      if (!order) {
+        sendJson(res, 404, {
+          success: false,
+          error: 'Commande introuvable'
+        });
+        return;
+      }
+
+      if (order.status !== 'paid' && order.paymentStatus !== 'paid') {
+        sendJson(res, 400, {
+          success: false,
+          error: 'Le paiement doit être confirmé avant la livraison'
+        });
+        return;
+      }
+
+      const product = data.products.find((item) => {
+        return Number(item.id) === Number(order.productId);
+      });
+
+      const downloadUrl = product && product.downloadUrl
+        ? product.downloadUrl
+        : `https://digitalflow.test/download/order-${order.id}`;
+
+      const message = `Bonjour ${order.customerName || 'cher client'}, votre paiement a été confirmé. Voici votre lien de téléchargement : ${downloadUrl}`;
+      const encodedMessage = encodeURIComponent(message);
+      const phone = String(order.customerPhone || '').replace(/[^0-9]/g, '');
+      const whatsappUrl = phone
+        ? `https://wa.me/${phone}?text=${encodedMessage}`
+        : `https://wa.me/?text=${encodedMessage}`;
+
+      order.deliveryStatus = 'ready';
+      order.deliveryChannel = 'whatsapp';
+      order.downloadUrl = downloadUrl;
+      order.whatsappUrl = whatsappUrl;
+      saveData(data);
+
+      sendJson(res, 200, {
+        success: true,
+        message: 'Lien WhatsApp de livraison créé',
+        data: {
+          orderId: order.id,
+          deliveryStatus: order.deliveryStatus,
+          downloadUrl: downloadUrl,
+          whatsappUrl: whatsappUrl,
+          message: message
+        }
+      });
+    } catch (error) {
+      sendJson(res, 400, {
+        success: false,
+        error: 'Données de livraison invalides'
       });
     }
     return;
