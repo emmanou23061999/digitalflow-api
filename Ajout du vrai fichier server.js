@@ -147,6 +147,25 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (method === 'GET' && url.startsWith('/orders/')) {
+    const orderId = Number(url.split('/')[2]);
+    const order = data.orders.find((item) => Number(item.id) === orderId);
+
+    if (!order) {
+      sendJson(res, 404, {
+        success: false,
+        error: 'Commande introuvable'
+      });
+      return;
+    }
+
+    sendJson(res, 200, {
+      success: true,
+      data: order
+    });
+    return;
+  }
+
   if (method === 'POST' && url === '/orders') {
     try {
       const body = await readBody(req);
@@ -336,3 +355,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`DigitalFlow API démarrée sur le port ${PORT}`);
 });
+
