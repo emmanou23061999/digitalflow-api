@@ -1,19 +1,15 @@
 # DigitalFlow API
 
-DigitalFlow API est une API REST portable destinée à la vente et à la livraison de produits numériques. Le parcours principal est centré sur la création d’une commande, la confirmation d’un paiement simulé et la préparation d’un lien de livraison WhatsApp.
+DigitalFlow API est une API REST portable destinée à simplifier la vente et la livraison de produits numériques. Le parcours principal est centré sur WhatsApp : un vendeur crée un produit ou une offre, enregistre une commande, simule le paiement, confirme le paiement et génère un lien de livraison WhatsApp.
 
-Le projet reste simple, compréhensible et portable. Il fonctionne avec Node.js, le module natif `http` et un fichier local `data.json`. Il ne dépend pas de Manus et n’utilise aucune vraie clé de paiement ou clé WhatsApp.
+Le projet est construit en Node.js avec le module HTTP natif. Il ne nécessite aucune dépendance npm obligatoire et utilise `data.json` comme stockage persistant pour le prototype.
 
-## Objectifs
+## Caractéristiques du prototype
 
-DigitalFlow API permet d’enregistrer des produits, de créer des offres, de recevoir des commandes, de simuler un paiement, de confirmer ce paiement et de préparer un lien WhatsApp contenant les informations de livraison.
-
-## Technologies
-
-| Élément | Choix actuel |
+| Élément | Technologie ou valeur |
 |---|---|
-| Langage | JavaScript |
-| Runtime | Node.js 20 |
+| Langage | Node.js |
+| Version d’exécution | Node.js 20 |
 | Serveur HTTP | Module natif `http` |
 | Dépendances | Aucune dépendance npm obligatoire |
 | Stockage du prototype | `data.json` |
@@ -23,11 +19,7 @@ DigitalFlow API permet d’enregistrer des produits, de créer des offres, de re
 
 ## Démarrage
 
-```bash
-### GET /products/:id
-
-Consulte un seul produit à partir de son identifiant.
+Pour démarrer l’API, exécuter :
 
 ```bash
-curl http://localhost:3000/products/1
-t
+npm start
