@@ -24,4 +24,10 @@ DigitalFlow API permet d’enregistrer des produits, de créer des offres, de re
 ## Démarrage
 
 ```bash
-npm start
+npm star### GET /products/:id
+
+Consulte un seul produit à partir de son identifiant.
+
+```bash
+curl http://localhost:3000/products/1
+t
