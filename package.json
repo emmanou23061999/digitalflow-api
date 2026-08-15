@@ -1,0 +1,14 @@
+{
+  "name": "digitalflow-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API portable de vente et de livraison de produits digitaux",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+
