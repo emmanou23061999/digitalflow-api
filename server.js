@@ -7,8 +7,14 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 
 function loadData() {
   try {
+    if (!fs.existsSync(DATA_FILE)) {
+      const initialData = { products: [], offers: [], orders: [] };
+      fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
+      return initialData;
+    }
+
     const content = fs.readFileSync(DATA_FILE, 'utf8');
-    const data = JSON.parse(content);
+    const data = JSON.parse(content || '{}');
 
     return {
       products: Array.isArray(data.products) ? data.products : [],
@@ -16,19 +22,20 @@ function loadData() {
       orders: Array.isArray(data.orders) ? data.orders : []
     };
   } catch (error) {
+    console.error('Erreur de lecture de data.json:', error.message);
     return { products: [], offers: [], orders: [] };
   }
 }
 
 function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type'
   });
   res.end(JSON.stringify(payload));
@@ -39,7 +46,7 @@ function readBody(req) {
     let body = '';
 
     req.on('data', (chunk) => {
-      body += chunk;
+      body += chunk.toString();
     });
 
     req.on('end', () => {
@@ -60,72 +67,105 @@ function readBody(req) {
 }
 
 function nextId(items) {
-  if (items.length === 0) {
-    return 1;
-  }
-
+  if (items.length === 0) return 1;
   return Math.max(...items.map((item) => Number(item.id) || 0)) + 1;
 }
 
 const server = http.createServer(async (req, res) => {
   const method = req.method;
-  const url = req.url.split('?')[0];
+  const url = (req.url || '/').split('?')[0];
   const data = loadData();
 
   if (method === 'OPTIONS') {
-    sendJson(res, 204, {});
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    });
+    res.end();
     return;
   }
 
   if (method === 'GET' && url === '/health') {
     sendJson(res, 200, {
       success: true,
-      message: 'DigitalFlow API fonctionne'
+      message: 'DigitalFlow API fonctionne correctement'
     });
     return;
   }
 
   if (method === 'GET' && url === '/products') {
-    sendJson(res, 200, { success: true, data: data.products });
+    sendJson(res, 200, {
+      success: true,
+      data: data.products
+    });
+    return;
+  }
+
+  // Consulter un seul produit : GET /products/:id
+  if (method === 'GET' && url.startsWith('/products/')) {
+    const id = Number(url.split('/')[2]);
+    const product = data.products.find((item) => Number(item.id) === id);
+
+    if (!product) {
+      sendJson(res, 404, {
+        success: false,
+        error: 'Produit introuvable'
+      });
+      return;
+    }
+
+    sendJson(res, 200, {
+      success: true,
+      data: product
+    });
     return;
   }
 
   if (method === 'POST' && url === '/products') {
     try {
       const body = await readBody(req);
+
       const product = {
         id: nextId(data.products),
-        name: body.name || 'Produit sans nom',
+        name: body.name || '',
         description: body.description || '',
         price: Number(body.price) || 0,
         currency: body.currency || 'XOF',
-        downloadUrl: body.downloadUrl || '',
         createdAt: new Date().toISOString()
       };
 
       data.products.push(product);
       saveData(data);
-      sendJson(res, 201, { success: true, data: product });
+
+      sendJson(res, 201, {
+        success: true,
+        data: product
+      });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
-        error: 'Données du produit invalides'
+        error: error.message
       });
     }
     return;
   }
 
   if (method === 'GET' && url === '/offers') {
-    sendJson(res, 200, { success: true, data: data.offers });
+    sendJson(res, 200, {
+      success: true,
+      data: data.offers
+    });
     return;
   }
 
   if (method === 'POST' && url === '/offers') {
     try {
       const body = await readBody(req);
+
       const offer = {
         id: nextId(data.offers),
-        name: body.name || 'Offre sans nom',
+        name: body.name || '',
         description: body.description || '',
         price: Number(body.price) || 0,
         currency: body.currency || 'XOF',
@@ -135,24 +175,31 @@ const server = http.createServer(async (req, res) => {
 
       data.offers.push(offer);
       saveData(data);
-      sendJson(res, 201, { success: true, data: offer });
+
+      sendJson(res, 201, {
+        success: true,
+        data: offer
+      });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
-        error: 'Données de l’offre invalides'
+        error: error.message
       });
     }
     return;
   }
 
   if (method === 'GET' && url === '/orders') {
-    sendJson(res, 200, { success: true, data: data.orders });
+    sendJson(res, 200, {
+      success: true,
+      data: data.orders
+    });
     return;
   }
 
   if (method === 'GET' && url.startsWith('/orders/')) {
-    const orderId = Number(url.split('/')[2]);
-    const order = data.orders.find((item) => Number(item.id) === orderId);
+    const id = Number(url.split('/')[2]);
+    const order = data.orders.find((item) => Number(item.id) === id);
 
     if (!order) {
       sendJson(res, 404, {
@@ -162,17 +209,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    sendJson(res, 200, { success: true, data: order });
+    sendJson(res, 200, {
+      success: true,
+      data: order
+    });
     return;
   }
 
   if (method === 'POST' && url === '/orders') {
     try {
       const body = await readBody(req);
-      const customerName = body.customerName || body.name;
-      const orderAmount = Number(body.amount ?? body.price);
 
-      if (!customerName || !orderAmount || orderAmount <= 0) {
+      if (!body.customerName || body.amount === undefined || body.amount === null || body.amount === '') {
         sendJson(res, 400, {
           success: false,
           error: 'customerName et amount sont obligatoires'
@@ -182,23 +230,30 @@ const server = http.createServer(async (req, res) => {
 
       const order = {
         id: nextId(data.orders),
-        customerName: customerName,
-        customerPhone: body.customerPhone || body.phone || '',
+        customerName: body.customerName,
+        customerPhone: body.customerPhone || '',
         productId: body.productId || null,
         offerId: body.offerId || null,
-        amount: orderAmount,
+        amount: Number(body.amount),
         currency: body.currency || 'XOF',
         status: 'pending',
+        paymentReference: null,
+        whatsappUrl: null,
+        deliveryStatus: 'pending',
         createdAt: new Date().toISOString()
       };
 
       data.orders.push(order);
       saveData(data);
-      sendJson(res, 201, { success: true, data: order });
+
+      sendJson(res, 201, {
+        success: true,
+        data: order
+      });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
-        error: 'Données de la commande invalides'
+        error: error.message
       });
     }
     return;
@@ -208,15 +263,6 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       const orderId = Number(body.orderId);
-
-      if (!orderId) {
-        sendJson(res, 400, {
-          success: false,
-          error: 'orderId est obligatoire'
-        });
-        return;
-      }
-
       const order = data.orders.find((item) => Number(item.id) === orderId);
 
       if (!order) {
@@ -228,28 +274,25 @@ const server = http.createServer(async (req, res) => {
       }
 
       const paymentReference = `PAY-${order.id}-${Date.now()}`;
-      const amount = order.amount ?? order.price ?? 0;
-
       order.paymentReference = paymentReference;
-      order.paymentStatus = 'pending';
-      order.paymentUrl = `https://digitalflow.test/pay/${paymentReference}`;
+      order.status = 'payment_pending';
       saveData(data);
 
       sendJson(res, 201, {
         success: true,
+        message: 'Session de paiement simulée créée',
         data: {
           orderId: order.id,
-          amount: amount,
-          currency: order.currency || 'XOF',
-          paymentReference: paymentReference,
-          paymentUrl: order.paymentUrl,
-          status: 'pending'
+          paymentReference,
+          amount: order.amount,
+          currency: order.currency,
+          status: order.status
         }
       });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
-        error: 'Données de paiement invalides'
+        error: error.message
       });
     }
     return;
@@ -259,36 +302,29 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readBody(req);
       const orderId = Number(body.orderId);
-      const paymentReference = body.paymentReference;
-
-      const order = data.orders.find((item) => {
-        const sameId = orderId && Number(item.id) === orderId;
-        const sameReference = paymentReference && item.paymentReference === paymentReference;
-        return sameId || sameReference;
-      });
+      const order = data.orders.find((item) => Number(item.id) === orderId);
 
       if (!order) {
         sendJson(res, 404, {
           success: false,
-          error: 'Commande ou référence de paiement introuvable'
+          error: 'Commande introuvable'
         });
         return;
       }
 
-      order.paymentStatus = 'paid';
       order.status = 'paid';
-      order.paidAt = new Date().toISOString();
+      order.paymentReference = body.paymentReference || order.paymentReference || `PAY-${order.id}-${Date.now()}`;
       saveData(data);
 
       sendJson(res, 200, {
         success: true,
-        message: 'Votre paiement a été effectué avec succès',
+        message: 'Paiement confirmé avec succès',
         data: order
       });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
-        error: 'Données de confirmation invalides'
+        error: error.message
       });
     }
     return;
@@ -308,47 +344,27 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (order.status !== 'paid' && order.paymentStatus !== 'paid') {
-        sendJson(res, 400, {
-          success: false,
-          error: 'Le paiement doit être confirmé avant la livraison'
-        });
-        return;
-      }
+      const phone = String(body.phone || order.customerPhone || '').replace(/[^0-9]/g, '');
+      const message = body.message || `Bonjour ${order.customerName}, votre paiement a été confirmé avec succès. Voici votre lien de livraison DigitalFlow.`;
+      const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 
-      const product = data.products.find((item) => Number(item.id) === Number(order.productId));
-      const downloadUrl = product && product.downloadUrl
-        ? product.downloadUrl
-        : `https://digitalflow.test/download/order-${order.id}`;
-
-      const message = `Bonjour ${order.customerName || 'cher client'}, votre paiement a été confirmé. Voici votre lien de téléchargement : ${downloadUrl}`;
-      const encodedMessage = encodeURIComponent(message);
-      const phone = String(order.customerPhone || '').replace(/[^0-9]/g, '');
-      const whatsappUrl = phone
-        ? `https://wa.me/${phone}?text=${encodedMessage}`
-        : `https://wa.me/?text=${encodedMessage}`;
-
-      order.deliveryStatus = 'ready';
-      order.deliveryChannel = 'whatsapp';
-      order.downloadUrl = downloadUrl;
       order.whatsappUrl = whatsappUrl;
+      order.deliveryStatus = 'ready';
       saveData(data);
 
       sendJson(res, 200, {
         success: true,
-        message: 'Lien WhatsApp de livraison créé',
+        message: 'Lien WhatsApp de livraison généré',
         data: {
           orderId: order.id,
-          deliveryStatus: order.deliveryStatus,
-          downloadUrl: downloadUrl,
-          whatsappUrl: whatsappUrl,
-          message: message
+          whatsappUrl,
+          deliveryStatus: order.deliveryStatus
         }
       });
     } catch (error) {
       sendJson(res, 400, {
         success: false,
-        error: 'Données de livraison invalides'
+        error: error.message
       });
     }
     return;
