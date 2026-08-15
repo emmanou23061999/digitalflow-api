@@ -1,181 +1,303 @@
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-const dataFile = path.join(__dirname, "data.json");
+const PORT = process.env.PORT || 3000;
+const DATA_FILE = path.join(__dirname, 'data.json');
 
 function loadData() {
   try {
-    const data = JSON.parse(fs.readFileSync(dataFile, "utf8"));
+    const content = fs.readFileSync(DATA_FILE, 'utf8');
+    const data = JSON.parse(content);
+
     return {
       products: Array.isArray(data.products) ? data.products : [],
       offers: Array.isArray(data.offers) ? data.offers : [],
       orders: Array.isArray(data.orders) ? data.orders : []
     };
   } catch (error) {
-    return { products: [], offers: [], orders: [] };
+    return {
+      products: [],
+      offers: [],
+      orders: []
+    };
   }
 }
 
-let database = loadData();
-
-function saveData() {
-  fs.writeFileSync(dataFile, JSON.stringify(database, null, 2));
+function saveData(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-function sendJson(res, statusCode, data) {
+function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
   });
-  res.end(JSON.stringify(data));
+  res.end(JSON.stringify(payload));
 }
 
-function readBody(req, callback) {
-  let body = "";
-  req.on("data", (chunk) => {
-    body += chunk.toString();
-  });
-  req.on("end", () => {
-    try {
-      callback(null, JSON.parse(body));
-    } catch (error) {
-      callback(new Error("JSON invalide"), null);
-    }
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+
+    req.on('end', () => {
+      if (!body) {
+        resolve({});
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(new Error('JSON invalide'));
+      }
+    });
+
+    req.on('error', reject);
   });
 }
 
-const server = http.createServer((req, res) => {
-  if (req.method === "OPTIONS") {
-    sendJson(res, 200, { success: true });
+function nextId(items) {
+  if (items.length === 0) {
+    return 1;
+  }
+
+  return Math.max(...items.map((item) => Number(item.id) || 0)) + 1;
+}
+
+const server = http.createServer(async (req, res) => {
+  const method = req.method;
+  const url = req.url.split('?')[0];
+  const data = loadData();
+
+  if (method === 'OPTIONS') {
+    sendJson(res, 204, {});
     return;
   }
 
-  if (req.method === "GET" && req.url === "/health") {
+  if (method === 'GET' && url === '/health') {
     sendJson(res, 200, {
       success: true,
-      service: "digitalflow-api",
-      status: "ok"
+      message: 'DigitalFlow API fonctionne'
     });
     return;
   }
 
-  if (req.method === "GET" && req.url === "/products") {
-    sendJson(res, 200, { success: true, data: database.products });
+  if (method === 'GET' && url === '/products') {
+    sendJson(res, 200, {
+      success: true,
+      data: data.products
+    });
     return;
   }
 
-  if (req.method === "POST" && req.url === "/products") {
-    readBody(req, (error, data) => {
-      if (error) {
-        sendJson(res, 400, { success: false, error: "JSON invalide" });
-        return;
-      }
-      if (!data.name || data.price === undefined) {
-        sendJson(res, 400, {
-          success: false,
-          error: "name et price sont obligatoires"
-        });
-        return;
-      }
+  if (method === 'POST' && url === '/products') {
+    try {
+      const body = await readBody(req);
       const product = {
-        id: database.products.length + 1,
-        name: data.name,
-        description: data.description || "",
-        price: data.price,
-        currency: data.currency || "XOF",
+        id: nextId(data.products),
+        name: body.name || 'Produit sans nom',
+        description: body.description || '',
+        price: Number(body.price) || 0,
+        currency: body.currency || 'XOF',
+        downloadUrl: body.downloadUrl || '',
         createdAt: new Date().toISOString()
       };
-      database.products.push(product);
-      saveData();
-      sendJson(res, 201, { success: true, data: product });
+
+      data.products.push(product);
+      saveData(data);
+
+      sendJson(res, 201, {
+        success: true,
+        data: product
+      });
+    } catch (error) {
+      sendJson(res, 400, {
+        success: false,
+        error: 'Données du produit invalides'
+      });
+    }
+    return;
+  }
+
+  if (method === 'GET' && url === '/offers') {
+    sendJson(res, 200, {
+      success: true,
+      data: data.offers
     });
     return;
   }
 
-  if (req.method === "GET" && req.url === "/offers") {
-    sendJson(res, 200, { success: true, data: database.offers });
-    return;
-  }
-
-  if (req.method === "POST" && req.url === "/offers") {
-    readBody(req, (error, data) => {
-      if (error) {
-        sendJson(res, 400, { success: false, error: "JSON invalide" });
-        return;
-      }
-      if (!data.name || data.price === undefined) {
-        sendJson(res, 400, {
-          success: false,
-          error: "name et price sont obligatoires"
-        });
-        return;
-      }
+  if (method === 'POST' && url === '/offers') {
+    try {
+      const body = await readBody(req);
       const offer = {
-        id: database.offers.length + 1,
-        name: data.name,
-        description: data.description || "",
-        price: data.price,
-        currency: data.currency || "XOF",
-        productId: data.productId || null,
+        id: nextId(data.offers),
+        name: body.name || 'Offre sans nom',
+        description: body.description || '',
+        price: Number(body.price) || 0,
+        currency: body.currency || 'XOF',
+        productIds: Array.isArray(body.productIds) ? body.productIds : [],
         createdAt: new Date().toISOString()
       };
-      database.offers.push(offer);
-      saveData();
-      sendJson(res, 201, { success: true, data: offer });
+
+      data.offers.push(offer);
+      saveData(data);
+
+      sendJson(res, 201, {
+        success: true,
+        data: offer
+      });
+    } catch (error) {
+      sendJson(res, 400, {
+        success: false,
+        error: 'Données de l’offre invalides'
+      });
+    }
+    return;
+  }
+
+  if (method === 'GET' && url === '/orders') {
+    sendJson(res, 200, {
+      success: true,
+      data: data.orders
     });
     return;
   }
 
-  if (req.method === "GET" && req.url === "/orders") {
-    sendJson(res, 200, { success: true, data: database.orders });
+  if (method === 'POST' && url === '/orders') {
+    try {
+      const body = await readBody(req);
+      const order = {
+        id: nextId(data.orders),
+        customerName: body.customerName || body.name || 'Client',
+        customerPhone: body.customerPhone || body.phone || '',
+        productId: body.productId || null,
+        offerId: body.offerId || null,
+        amount: Number(body.amount ?? body.price) || 0,
+        currency: body.currency || 'XOF',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      data.orders.push(order);
+      saveData(data);
+
+      sendJson(res, 201, {
+        success: true,
+        data: order
+      });
+    } catch (error) {
+      sendJson(res, 400, {
+        success: false,
+        error: 'Données de la commande invalides'
+      });
+    }
     return;
   }
 
-  if (req.method === "POST" && req.url === "/orders") {
-    readBody(req, (error, data) => {
-      if (error) {
-        sendJson(res, 400, { success: false, error: "JSON invalide" });
-        return;
-      }
-      if (!data.offerId || !data.customerName) {
+  if (method === 'POST' && url === '/checkout-sessions') {
+    try {
+      const body = await readBody(req);
+      const orderId = Number(body.orderId);
+
+      if (!orderId) {
         sendJson(res, 400, {
           success: false,
-          error: "offerId et customerName sont obligatoires"
+          error: 'orderId est obligatoire'
         });
         return;
       }
-      const order = {
-        id: database.orders.length + 1,
-        offerId: data.offerId,
-        customerName: data.customerName,
-        customerEmail: data.customerEmail || "",
-        customerPhone: data.customerPhone || "",
-        amount: data.amount || 0,
-        currency: data.currency || "XOF",
-        status: "pending",
-        paymentStatus: "pending",
-        deliveryStatus: "pending",
-        createdAt: new Date().toISOString()
-      };
-      database.orders.push(order);
-      saveData();
-      sendJson(res, 201, { success: true, data: order });
-    });
+
+      const order = data.orders.find((item) => Number(item.id) === orderId);
+
+      if (!order) {
+        sendJson(res, 404, {
+          success: false,
+          error: 'Commande introuvable'
+        });
+        return;
+      }
+
+      const paymentReference = `PAY-${order.id}-${Date.now()}`;
+      const amount = order.amount ?? order.price ?? 0;
+
+      order.paymentReference = paymentReference;
+      order.paymentStatus = 'pending';
+      order.paymentUrl = `https://digitalflow.test/pay/${paymentReference}`;
+      saveData(data);
+
+      sendJson(res, 201, {
+        success: true,
+        data: {
+          orderId: order.id,
+          amount: amount,
+          currency: order.currency || 'XOF',
+          paymentReference: paymentReference,
+          paymentUrl: order.paymentUrl,
+          status: 'pending'
+        }
+      });
+    } catch (error) {
+      sendJson(res, 400, {
+        success: false,
+        error: 'Données de paiement invalides'
+      });
+    }
+    return;
+  }
+
+  if (method === 'POST' && url === '/checkout-sessions/confirm') {
+    try {
+      const body = await readBody(req);
+      const orderId = Number(body.orderId);
+      const paymentReference = body.paymentReference;
+
+      const order = data.orders.find((item) => {
+        const sameId = orderId && Number(item.id) === orderId;
+        const sameReference = paymentReference && item.paymentReference === paymentReference;
+        return sameId || sameReference;
+      });
+
+      if (!order) {
+        sendJson(res, 404, {
+          success: false,
+          error: 'Commande ou référence de paiement introuvable'
+        });
+        return;
+      }
+
+      order.paymentStatus = 'paid';
+      order.status = 'paid';
+      order.paidAt = new Date().toISOString();
+      saveData(data);
+
+      sendJson(res, 200, {
+        success: true,
+        message: 'Votre paiement a été effectué avec succès',
+        data: order
+      });
+    } catch (error) {
+      sendJson(res, 400, {
+        success: false,
+        error: 'Données de confirmation invalides'
+      });
+    }
     return;
   }
 
   sendJson(res, 404, {
     success: false,
-    error: "Route non trouvée"
+    error: 'Route non trouvée'
   });
 });
 
-const PORT = process.env.PORT || 3000;
-
-server.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, () => {
   console.log(`DigitalFlow API démarrée sur le port ${PORT}`);
 });
-
