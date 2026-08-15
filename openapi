@@ -1,0 +1,272 @@
+openapi: 3.0.3
+info:
+  title: DigitalFlow API
+  version: 0.1.0
+  description: API portable pour créer des produits numériques, gérer des offres, préparer un paiement et livrer un accès sécurisé.
+servers:
+  - url: http://localhost:3000
+    description: Environnement local
+paths:
+  /health:
+    get:
+      summary: Vérifier que l’API fonctionne
+      operationId: getHealth
+      responses:
+        '200':
+          description: API disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /products:
+    post:
+      summary: Créer un produit numérique
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: Produit créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    get:
+      summary: Lister les produits
+      operationId: listProducts
+      responses:
+        '200':
+          description: Liste des produits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+  /products/{productId}:
+    get:
+      summary: Consulter un produit
+      operationId: getProduct
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Produit trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Produit introuvable
+  /offers:
+    post:
+      summary: Créer une offre pour un produit
+      operationId: createOffer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferInput'
+      responses:
+        '201':
+          description: Offre créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+  /checkout-sessions:
+    post:
+      summary: Créer une session de paiement de test
+      operationId: createCheckoutSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutSessionInput'
+      responses:
+        '201':
+          description: Session de paiement créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+  /webhooks/payment:
+    post:
+      summary: Recevoir la confirmation d’un prestataire de paiement
+      operationId: receivePaymentWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Événement reçu
+  /orders/{orderId}:
+    get:
+      summary: Consulter une commande
+      operationId: getOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Commande trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Commande introuvable
+  /deliveries/{deliveryId}:
+    get:
+      summary: Obtenir un lien de livraison sécurisé
+      operationId: getDelivery
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Informations de livraison
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Delivery'
+        '404':
+          description: Livraison introuvable
+components:
+  parameters:
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: string
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    ProductInput:
+      type: object
+      required: [name, description, deliveryType]
+      properties:
+        name:
+          type: string
+          example: Guide numérique
+        description:
+          type: string
+        deliveryType:
+          type: string
+          enum: [file, link, course_access]
+        deliveryReference:
+          type: string
+          description: Référence interne du fichier ou de l’accès ; ne pas exposer une clé secrète.
+    Product:
+      allOf:
+        - $ref: '#/components/schemas/ProductInput'
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+    OfferInput:
+      type: object
+      required: [productId, name, amount, currency]
+      properties:
+        productId:
+          type: string
+        name:
+          type: string
+        amount:
+          type: integer
+          minimum: 1
+          description: Montant dans l’unité mineure de la devise.
+        currency:
+          type: string
+          example: EUR
+        expiresAt:
+          type: string
+          format: date-time
+    Offer:
+      allOf:
+        - $ref: '#/components/schemas/OfferInput'
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+    CheckoutSessionInput:
+      type: object
+      required: [offerId, customerEmail]
+      properties:
+        offerId:
+          type: string
+        customerEmail:
+          type: string
+          format: email
+    CheckoutSession:
+      type: object
+      required: [id, status, checkoutUrl]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending, paid, expired, cancelled]
+        checkoutUrl:
+          type: string
+          format: uri
+    Order:
+      type: object
+      required: [id, offerId, status, createdAt]
+      properties:
+        id:
+          type: string
+        offerId:
+          type: string
+        status:
+          type: string
+          enum: [pending, paid, delivered, refunded]
+        customerEmail:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Delivery:
+      type: object
+      required: [id, orderId, status]
+      properties:
+        id:
+          type: string
+        orderId:
+          type: string
+        status:
+          type: string
+          enum: [available, expired, revoked]
+        downloadUrl:
+          type: string
+          format: uri
