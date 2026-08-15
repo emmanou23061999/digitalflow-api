@@ -159,6 +159,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Consulter une seule offre : GET /offers/:id
+  if (method === 'GET' && url.startsWith('/offers/')) {
+    const id = Number(url.split('/')[2]);
+    const offer = data.offers.find((item) => Number(item.id) === id);
+
+    if (!offer) {
+      sendJson(res, 404, {
+        success: false,
+        error: 'Offre introuvable'
+      });
+      return;
+    }
+
+    sendJson(res, 200, {
+      success: true,
+      data: offer
+    });
+    return;
+  }
+
   if (method === 'POST' && url === '/offers') {
     try {
       const body = await readBody(req);
