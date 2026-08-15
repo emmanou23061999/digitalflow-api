@@ -102,7 +102,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Consulter un seul produit : GET /products/:id
   if (method === 'GET' && url.startsWith('/products/')) {
     const id = Number(url.split('/')[2]);
     const product = data.products.find((item) => Number(item.id) === id);
@@ -122,7 +121,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Créer un produit avec validation
   if (method === 'POST' && url === '/products') {
     try {
       const body = await readBody(req);
@@ -171,7 +169,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Consulter une seule offre : GET /offers/:id
   if (method === 'GET' && url.startsWith('/offers/')) {
     const id = Number(url.split('/')[2]);
     const offer = data.offers.find((item) => Number(item.id) === id);
@@ -194,14 +191,26 @@ const server = http.createServer(async (req, res) => {
   if (method === 'POST' && url === '/offers') {
     try {
       const body = await readBody(req);
+      const name = String(body.name || '').trim();
+      const description = String(body.description || '').trim();
+      const price = Number(body.price);
+      const productIds = Array.isArray(body.productIds) ? body.productIds : [];
+
+      if (!name || !description || !Number.isFinite(price) || price <= 0 || productIds.length === 0) {
+        sendJson(res, 400, {
+          success: false,
+          error: 'name, description, un price supérieur à 0 et au moins un productId sont obligatoires'
+        });
+        return;
+      }
 
       const offer = {
         id: nextId(data.offers),
-        name: body.name || '',
-        description: body.description || '',
-        price: Number(body.price) || 0,
+        name,
+        description,
+        price,
         currency: body.currency || 'XOF',
-        productIds: Array.isArray(body.productIds) ? body.productIds : [],
+        productIds,
         createdAt: new Date().toISOString()
       };
 
@@ -411,4 +420,3 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`DigitalFlow API démarrée sur le port ${PORT}`);
 });
-
