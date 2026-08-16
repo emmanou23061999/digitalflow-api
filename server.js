@@ -4,6 +4,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
+const API_KEY = process.env.DIGITALFLOW_API_KEY;
 
 function loadData() {
   try {
@@ -36,7 +37,7 @@ function sendJson(res, statusCode, payload) {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key'
   });
   res.end(JSON.stringify(payload));
 }
@@ -71,20 +72,59 @@ function nextId(items) {
   return Math.max(...items.map((item) => Number(item.id) || 0)) + 1;
 }
 
+function isProtectedRoute(method, url) {
+  if (method !== 'POST') return false;
+
+  const protectedRoutes = [
+    '/products',
+    '/offers',
+    '/orders',
+    '/checkout-sessions',
+    '/checkout-sessions/confirm',
+    '/deliveries/whatsapp'
+  ];
+
+  return protectedRoutes.includes(url);
+}
+
+function hasValidApiKey(req) {
+  const receivedKey = req.headers['x-api-key'];
+  return Boolean(API_KEY && receivedKey && receivedKey === API_KEY);
+}
+
 const server = http.createServer(async (req, res) => {
   const method = req.method;
   const url = (req.url || '/').split('?')[0];
-  const data = loadData();
 
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-Key'
     });
     res.end();
     return;
   }
+
+  if (isProtectedRoute(method, url)) {
+    if (!API_KEY) {
+      sendJson(res, 500, {
+        success: false,
+        error: 'DIGITALFLOW_API_KEY non configurée dans les Secrets'
+      });
+      return;
+    }
+
+    if (!hasValidApiKey(req)) {
+      sendJson(res, 401, {
+        success: false,
+        error: 'Clé API manquante ou invalide'
+      });
+      return;
+    }
+  }
+
+  const data = loadData();
 
   if (method === 'GET' && url === '/health') {
     sendJson(res, 200, {
@@ -102,6 +142,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Consulter un seul produit : GET /products/:id
   if (method === 'GET' && url.startsWith('/products/')) {
     const id = Number(url.split('/')[2]);
     const product = data.products.find((item) => Number(item.id) === id);
@@ -169,6 +210,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Consulter une seule offre : GET /offers/:id
   if (method === 'GET' && url.startsWith('/offers/')) {
     const id = Number(url.split('/')[2]);
     const offer = data.offers.find((item) => Number(item.id) === id);
