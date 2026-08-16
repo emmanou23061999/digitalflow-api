@@ -302,22 +302,37 @@ const server = http.createServer(async (req, res) => {
   if (method === 'POST' && url === '/orders') {
     try {
       const body = await readBody(req);
+      const customerName = String(body.customerName || '').trim();
+      const amount = Number(body.amount);
+      const hasProductField = body.productId !== undefined && body.productId !== null && body.productId !== '';
+      const hasOfferField = body.offerId !== undefined && body.offerId !== null && body.offerId !== '';
+      const productId = hasProductField ? Number(body.productId) : null;
+      const offerId = hasOfferField ? Number(body.offerId) : null;
+      const productExists = Number.isInteger(productId) && data.products.some((item) => Number(item.id) === productId);
+      const offerExists = Number.isInteger(offerId) && data.offers.some((item) => Number(item.id) === offerId);
 
-      if (!body.customerName || body.amount === undefined || body.amount === null || body.amount === '') {
+      if (
+        !customerName ||
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        (!productExists && !offerExists) ||
+        (hasProductField && !productExists) ||
+        (hasOfferField && !offerExists)
+      ) {
         sendJson(res, 400, {
           success: false,
-          error: 'customerName et amount sont obligatoires'
+          error: 'customerName, un amount supérieur à 0 et un productId ou offerId valide sont obligatoires'
         });
         return;
       }
 
       const order = {
         id: nextId(data.orders),
-        customerName: body.customerName,
+        customerName,
         customerPhone: body.customerPhone || '',
-        productId: body.productId || null,
-        offerId: body.offerId || null,
-        amount: Number(body.amount),
+        productId,
+        offerId,
+        amount,
         currency: body.currency || 'XOF',
         status: 'pending',
         paymentReference: null,
@@ -352,6 +367,14 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 404, {
           success: false,
           error: 'Commande introuvable'
+        });
+        return;
+      }
+
+      if (order.status !== 'pending') {
+        sendJson(res, 400, {
+          success: false,
+          error: 'Cette commande ne peut pas recevoir une nouvelle session de paiement'
         });
         return;
       }
@@ -395,8 +418,24 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      if (order.status === 'paid') {
+        sendJson(res, 400, {
+          success: false,
+          error: 'Paiement déjà confirmé'
+        });
+        return;
+      }
+
+      if (order.status !== 'payment_pending') {
+        sendJson(res, 400, {
+          success: false,
+          error: 'La session de paiement doit être créée avant la confirmation'
+        });
+        return;
+      }
+
       order.status = 'paid';
-      order.paymentReference = body.paymentReference || order.paymentReference || `PAY-${order.id}-${Date.now()}`;
+      order.paymentReference = body.paymentReference || order.paymentReference;
       saveData(data);
 
       sendJson(res, 200, {
@@ -427,7 +466,24 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      if (order.status !== 'paid') {
+        sendJson(res, 400, {
+          success: false,
+          error: 'Paiement non confirmé : livraison WhatsApp impossible'
+        });
+        return;
+      }
+
       const phone = String(body.phone || order.customerPhone || '').replace(/[^0-9]/g, '');
+
+      if (!phone) {
+        sendJson(res, 400, {
+          success: false,
+          error: 'Un numéro WhatsApp est obligatoire'
+        });
+        return;
+      }
+
       const message = body.message || `Bonjour ${order.customerName}, votre paiement a été confirmé avec succès. Voici votre lien de livraison DigitalFlow.`;
       const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 
@@ -462,3 +518,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`DigitalFlow API démarrée sur le port ${PORT}`);
 });
+
